@@ -1,0 +1,40 @@
+# Lingkungan & kerahasiaan
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+
+# Artefak build
+dist/
+*.exe
+*.exe~
+*.test
+coverage/
+
+# Dependensi
+node_modules/
+
+# Log & berkas sementara
+logs/
+*.log
+tmp/
+.tmp/
+*.tmp
+
+# Cache
+__pycache__/
+*.pyc
+.cache/
+
+# Artefak analisis yang dihasilkan alat
+graphify-out/
+
+# Skill agent AI yang dipasang secara lokal
+.agents/
+skills-lock.json
+
+# Sistem operasi
+.DS_Store
+Thumbs.db
+desktop.ini
