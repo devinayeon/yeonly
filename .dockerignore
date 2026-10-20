@@ -1,0 +1,14 @@
+.git
+.gitignore
+.agents
+.tmp
+docs
+graphify-out
+web/node_modules
+web/dist
+server/*.exe
+server/*.exe~
+server/yeonly-server
+.firebaserc
+firebase.json
+README.md

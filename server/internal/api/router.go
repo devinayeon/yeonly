@@ -33,9 +33,11 @@ func (s *Server) SetupRoutes(webDistDir string) http.Handler {
 	mux.HandleFunc("/ws", s.WebSocketHandler)
 
 	// Health check
-	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "app": "Yeonly"})
-	})
+	}
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/api/health", healthHandler)
 
 	// Static frontend file server (SPA support)
 	if webDistDir != "" {
