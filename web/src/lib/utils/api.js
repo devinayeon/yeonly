@@ -1,8 +1,22 @@
 import { isRecord } from './protocol.js';
 
+const API_ENV = import.meta.env ?? {};
+const API_BASE = (API_ENV.VITE_API_BASE ?? '').replace(/\/+$/, '');
+
+/**
+ * Join a configured API origin with an API path.
+ * An empty base keeps same-origin requests, which preserves the Vite dev proxy.
+ * @param {string} base
+ * @param {string} path
+ * @returns {string}
+ */
+export function joinApiUrl(base, path) {
+  return `${(base ?? '').replace(/\/+$/, '')}${path}`;
+}
+
 /** @param {string} path @param {RequestInit} [options] @returns {Promise<unknown>} */
 async function requestJSON(path, options) {
-  const response = await fetch(path, options);
+  const response = await fetch(joinApiUrl(API_BASE, path), options);
   /** @type {unknown} */
   const data = await response.json();
   if (!response.ok) {

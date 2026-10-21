@@ -3,6 +3,21 @@ import { roomStore, getStoredHostKey, storeHostKey, getStoredRoomRole, storeRoom
 import { toast } from './toastStore.js';
 import { parseServerEvent } from '../utils/protocol.js';
 
+const WS_ENV = import.meta.env ?? {};
+const WS_BASE = (WS_ENV.VITE_WS_BASE ?? '').replace(/\/+$/, '');
+
+/**
+ * Resolve the WebSocket origin, preferring a separately deployed backend.
+ * Without VITE_WS_BASE the page origin is reused, which keeps the Vite dev proxy.
+ * @param {string} base
+ * @param {{ protocol: string, host: string }} location
+ * @returns {string}
+ */
+export function resolveWSOrigin(base, location) {
+  if (base) return base.replace(/\/+$/, '');
+  return `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+}
+
 function createWSStore() {
   const { subscribe, set } = writable({
     connected: false,
@@ -98,10 +113,7 @@ function createWSStore() {
       roomStore.update(s => ({ ...s, isHost: false, hostKey: '' }));
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-
-    let wsUrl = `${protocol}//${host}/ws?room=${encodeURIComponent(roomId)}&session=${encodeURIComponent(sessionId)}`;
+    let wsUrl = `${resolveWSOrigin(WS_BASE, window.location)}/ws?room=${encodeURIComponent(roomId)}&session=${encodeURIComponent(sessionId)}`;
     if (hostKey) {
       wsUrl += `&hostKey=${encodeURIComponent(hostKey)}`;
     }

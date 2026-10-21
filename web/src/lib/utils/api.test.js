@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchPublicRooms, createRoom, checkRoom } from './api.js';
+import { fetchPublicRooms, createRoom, checkRoom, joinApiUrl } from './api.js';
+
+test('joinApiUrl uses a configured backend origin and preserves the same-origin fallback', () => {
+  assert.equal(joinApiUrl('https://api.nayeonworks.tech', '/api/rooms'), 'https://api.nayeonworks.tech/api/rooms');
+  assert.equal(joinApiUrl('https://api.nayeonworks.tech/', '/api/rooms'), 'https://api.nayeonworks.tech/api/rooms');
+  assert.equal(joinApiUrl('', '/api/rooms'), '/api/rooms');
+});
 
 test('API helpers validate payloads, preserve errors and propagate cancellation', async (t) => {
   let body = { rooms: null };

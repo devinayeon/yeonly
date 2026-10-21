@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { get } from 'svelte/store';
-import { ws } from './wsStore.js';
+import { ws, resolveWSOrigin } from './wsStore.js';
 import { roomStore } from './roomStore.js';
 
 const question = (overrides = {}) => ({
@@ -209,4 +209,11 @@ test('WebSocket presence, acknowledgements and reconnection lifecycle', async (t
   assert.equal(get(roomStore).typingUsers.length, 0);
   t.mock.timers.tick(10000);
   assert.equal(connections.length, 2);
+});
+
+test('resolveWSOrigin prefers the configured backend and mirrors the page origin otherwise', () => {
+  assert.equal(resolveWSOrigin('wss://api.nayeonworks.tech', { protocol: 'https:', host: 'nayeonworks.tech' }), 'wss://api.nayeonworks.tech');
+  assert.equal(resolveWSOrigin('wss://api.nayeonworks.tech/', { protocol: 'https:', host: 'nayeonworks.tech' }), 'wss://api.nayeonworks.tech');
+  assert.equal(resolveWSOrigin('', { protocol: 'https:', host: 'nayeonworks.tech' }), 'wss://nayeonworks.tech');
+  assert.equal(resolveWSOrigin('', { protocol: 'http:', host: 'localhost:5173' }), 'ws://localhost:5173');
 });
