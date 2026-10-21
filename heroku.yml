@@ -1,6 +1,7 @@
 # Konfigurasi Heroku Container Stack.
-# Heroku membangun image ini dari root repositori, jadi Dockerfile harus
-# memperhatikan prefiks server/ pada setiap COPY.
+# Heroku memakai Dockerfile di bawah sebagai image web. Build context
+# otomatis diarahkan ke folder tempat Dockerfile berada (server/), sehingga
+# paths di dalam Dockerfile tidak perlu prefiks tambahan.
 build:
   docker:
-    web: Dockerfile.heroku
+    web: server/Dockerfile

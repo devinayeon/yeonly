@@ -102,21 +102,19 @@ Cloudflare Pages sudah menangani SPA secara bawaan: selama proyek **tidak memili
 
 ### 6.1 Artefak container
 
-- `server/Dockerfile` — image API-only untuk build lokal dan `heroku container:push`
-- `server/.dockerignore` — konteks build untuk `server/Dockerfile`
-- `Dockerfile.heroku` — image API-only yang dibangun Heroku dari root repo
-- `heroku.yml` — memberi tahu Heroku Container Stack untuk memakai `Dockerfile.heroku`
-- `.dockerignore` root — mengecilkan konteks build `Dockerfile.heroku`
+- `server/Dockerfile` — image API-only, dipakai oleh Heroku dan build lokal
+- `server/.dockerignore` — konteks build `server/Dockerfile`
+- `heroku.yml` — memberi tahu Heroku Container Stack untuk memakai `server/Dockerfile`
 - Health check `/health` tersedia di `server/cmd/server/main.go`
 
-Keduanya memakai Go 1.25, `CGO_ENABLED=0`, user non-root, dan membaca `$PORT` dari Heroku.
+Heroku mengarahkan build context ke folder tempat Dockerfile berada, jadi `server/Dockerfile` memakai konteks `server/` dan `COPY go.mod go.sum` tetap benar. Image memakai Go 1.25, `CGO_ENABLED=0`, user non-root, dan membaca `$PORT` dari Heroku.
 
 ### 6.2 Opsi deploy
 
 **Opsi A — container push dari lokal.** Butuh Docker Desktop dan Heroku CLI:
 
 ```sh
-heroku create yeonly-api --stack container
+heroku stack:set container -a yeonly-api
 heroku config:set ALLOWED_ORIGINS="https://nayeonworks.tech,https://www.nayeonworks.tech" -a yeonly-api
 heroku container:login
 cd server
@@ -130,7 +128,7 @@ heroku certs:auto -a yeonly-api
 
 **Opsi B — build di Heroku lewat GitHub (tanpa Docker lokal).** Ini jalur yang dipakai bila Docker/WSL2 belum tersedia:
 
-1. Pastikan `heroku.yml` dan `Dockerfile.heroku` sudah ada di branch `main`.
+1. Pastikan `heroku.yml` sudah ada di branch `main`.
 2. Heroku: **New → Create new app**, lalu **Settings → Stack → Container**.
 3. **Deploy → GitHub**, hubungkan `devinayeon/yeonly`, branch `main`.
 4. **Settings → Config Vars**: `ALLOWED_ORIGINS=https://nayeonworks.tech,https://www.nayeonworks.tech`.
@@ -236,7 +234,7 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 
 - [x] Fase 0: hapus konfigurasi Firebase, perbarui `.gitignore`
 - [x] Fase 1: env API/WS base, fallback SPA bawaan Pages, uji `npm run validate` (23 tes lulus, build sukses)
-- [x] Fase 2: Dockerfile, `.dockerignore`, `heroku.yml`, `Dockerfile.heroku`, dokumentasi deploy Heroku
+- [x] Fase 2: Dockerfile, `.dockerignore`, `heroku.yml`, dokumentasi deploy Heroku
 - [ ] Fase 3: proyek Pages, env var, uji preview (menunggu akun)
 - [ ] Fase 4: custom domain apex + www + `api`, verifikasi TLS (menunggu akun)
 - [x] Fase 5: allowlist CORS/WS; heartbeat sudah ada
