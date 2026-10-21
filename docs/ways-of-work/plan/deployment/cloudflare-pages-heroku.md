@@ -152,7 +152,7 @@ heroku container:release web -a yeonly-api
 - **Satu dyno saja**: state ruang hidup di memori proses; dua dyno = dua dunia terpisah.
 - **Restart membuang semua ruang**: Heroku merestart dyno minimal 1×/24 jam dan setiap deploy.
 - **Tidak ada persistent disk**: sesuai desain efemeral, tetapi jangan menjanjikan ruang tahan lama.
-- **Biaya**: Eco ±$5/dyno/bulan (sleep saat idle); Basic ±$7/bulan (tanpa sleep). Untuk kuliah, Basic lebih aman.
+- **Biaya**: akun memiliki Platform Credits $312, sehingga biaya efektif $0 sampai saldo habis. **Pilih Basic ($7/bulan, tanpa sleep), bukan Eco ($5/bulan)**, karena Eco tidur setelah periode idle: dyno yang tidur kehilangan seluruh state ruang in-memory dan permintaan berikutnya terkena cold start. Kredit $312 cukup untuk ±44 bulan Basic (atau ±62 bulan Eco). Periksa tanggal kedaluwarsa kredit di halaman Billing; kredit promosi umumnya memiliki masa berlaku.
 
 ## 7. Fase 3 — Frontend di Cloudflare Pages
 
@@ -218,6 +218,7 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 | Restart dyno menghapus ruang | Sesi kelas terputus | Terima sebagai desain efemeral; jadwalkan deploy di luar jam kuliah; pertimbangkan Redis bila perlu |
 | Dua dyno / autoscale | Peserta terpisah ke instance berbeda | Kunci di 1 dyno, matikan autoscaling |
 | Idle WebSocket diputus router | Indikator terputus berkedip | Auto-reconnect 3 dtk sudah ada; tambah ping server |
+| Eco dyno tidur saat idle | Ruang in-memory hilang, cold start saat kelas dimulai | Gunakan Basic (didukung kredit $312); hindari Eco |
 | CORS `*` | Origin mana pun dapat memanggil API | Allowlist `ALLOWED_ORIGIN` (Fase 5) |
 | Heroku berbayar | Biaya bulanan | Gunakan Basic hanya saat musim kuliah, atau pertimbangkan Cloud Run |
 | DNS `api` di-proxy Cloudflare | WebSocket gagal/terputus | Set DNS only (abu-abu) |
@@ -246,6 +247,9 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 | --- | --- |
 | Cloudflare Pages | Gratis (bandwidth tak terbatas) |
 | Cloudflare DNS + TLS | Gratis |
-| Heroku Eco | ±$5/bulan, sleep saat idle |
-| Heroku Basic | ±$7/bulan, tanpa sleep |
+| Heroku Basic | ±$7/bulan, tanpa sleep — **dipilih** |
+| Heroku Eco | ±$5/bulan, sleep saat idle — tidak dipilih |
+| **Saldo Platform Credits** | **$312 → ±44 bulan Basic dengan biaya aktual $0** (cek masa berlaku) |
 | Domain | sudah dimiliki |
+
+Catatan: kredit menutup biaya dyno, tetapi tidak menghapus kebutuhan verifikasi kartu. Tetap pantau Billing agar tidak terjadi penagihan otomatis setelah kredit habis. Jika kredit mendekati kedaluwarsa, evaluasi ulang opsi Cloud Run sebelum beralih ke tagihan kartu.
