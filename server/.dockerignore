@@ -1,0 +1,9 @@
+*.exe
+*.exe~
+*.test
+*.log
+.git
+.gitignore
+.tmp
+Dockerfile
+.dockerignore
