@@ -9,7 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/yeonly-
 
 FROM alpine:3.20
 
-RUN apk --no-cache add ca-certificates \
+RUN apk --no-cache add ca-certificates wget \
     && adduser -D -u 1001 appuser
 
 USER appuser

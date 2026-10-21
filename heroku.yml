@@ -1,0 +1,6 @@
+# Konfigurasi Heroku Container Stack.
+# Heroku membangun image ini dari root repositori, jadi Dockerfile harus
+# memperhatikan prefiks server/ pada setiap COPY.
+build:
+  docker:
+    web: Dockerfile.heroku
