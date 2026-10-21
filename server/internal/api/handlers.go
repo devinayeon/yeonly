@@ -15,8 +15,9 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow local development and public origins
-		return true
+		// Same-origin development and unset configuration stay permissive; a
+		// deployed backend should set ALLOWED_ORIGINS to the public frontend.
+		return originAllowed(r.Header.Get("Origin"))
 	},
 }
 
