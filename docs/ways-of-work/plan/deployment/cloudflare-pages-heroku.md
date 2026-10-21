@@ -1,6 +1,6 @@
 # Rencana Deployment: Cloudflare Pages + Heroku
 
-Status: **draft, belum dieksekusi**
+Status: **Fase 0–2 dan 5 diterapkan di repo; Fase 3–4 menunggu kredensial Cloudflare/Heroku**
 Tanggal: 2026-10-21
 Domain utama: `nayeonworks.tech`
 Pengganti: konfigurasi Firebase Hosting (`firebase.json`, `.firebaserc`)
@@ -94,11 +94,11 @@ Cloudflare Pages tidak membaca `rewrites` Firebase; file ini menggantikannya aga
 - [ ] Tambah kasus uji yang memverifikasi `apiUrl`/`wsOrigin` memakai env bila diset
 - [ ] `cd server && go test ./...` tetap lulus
 
-### 5.5 Pengerasan opsional (dapat menyusul)
+### 5.5 Pengerasan (sudah diterapkan)
 
-- Ganti `Access-Control-Allow-Origin: *` dengan allowlist dari env `ALLOWED_ORIGIN`
-- Terapkan allowlist serupa pada `CheckOrigin` WebSocket
-- Tambah `PING`/`PONG` di server dan client (`wsStore.js`) untuk menjaga koneksi idle
+- `Access-Control-Allow-Origin` kini mengikuti allowlist env `ALLOWED_ORIGINS`; kosong berarti `*` seperti sebelumnya
+- `CheckOrigin` WebSocket memakai allowlist yang sama
+- Heartbeat sudah tersedia sejak awal: server mengirim ping tiap 54 detik (`server/internal/ws/client.go`)
 
 ## 6. Fase 2 — Backend di Heroku
 
@@ -145,7 +145,7 @@ heroku container:release web -a yeonly-api
 | --- | --- | --- |
 | `PORT` | otomatis Heroku | ya |
 | `WEB_DIST` | kosong (mode API-only) | tidak |
-| `ALLOWED_ORIGIN` | `https://nayeonworks.tech` | nanti |
+| `ALLOWED_ORIGINS` | `https://nayeonworks.tech,https://www.nayeonworks.tech` | nanti |
 
 ### 6.4 Batasan platform
 
@@ -219,7 +219,7 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 | Dua dyno / autoscale | Peserta terpisah ke instance berbeda | Kunci di 1 dyno, matikan autoscaling |
 | Idle WebSocket diputus router | Indikator terputus berkedip | Auto-reconnect 3 dtk sudah ada; tambah ping server |
 | Eco dyno tidur saat idle | Ruang in-memory hilang, cold start saat kelas dimulai | Gunakan Basic (didukung kredit $312); hindari Eco |
-| CORS `*` | Origin mana pun dapat memanggil API | Allowlist `ALLOWED_ORIGIN` (Fase 5) |
+| CORS `*` | Origin mana pun dapat memanggil API | Sudah diganti allowlist `ALLOWED_ORIGINS`; set nilainya di Heroku |
 | Heroku berbayar | Biaya bulanan | Gunakan Basic hanya saat musim kuliah, atau pertimbangkan Cloud Run |
 | DNS `api` di-proxy Cloudflare | WebSocket gagal/terputus | Set DNS only (abu-abu) |
 
@@ -234,12 +234,13 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 
 ## 12. Checklist Eksekusi
 
-- [ ] Fase 0: hapus konfigurasi Firebase, commit
-- [ ] Fase 1: env API/WS base, `_redirects`, uji `npm run validate`
-- [ ] Fase 2: Dockerfile, `.dockerignore`, deploy Heroku, uji `/health`
-- [ ] Fase 3: proyek Pages, env var, uji preview
-- [ ] Fase 4: custom domain apex + www + `api`, verifikasi TLS
-- [ ] Fase 5: allowlist CORS/WS, heartbeat, pemantauan uptime
+- [x] Fase 0: hapus konfigurasi Firebase, perbarui `.gitignore`
+- [x] Fase 1: env API/WS base, `_redirects`, uji `npm run validate` (23 tes lulus, build sukses)
+- [x] Fase 2: Dockerfile, `.dockerignore`, dokumentasi deploy Heroku
+- [ ] Fase 3: proyek Pages, env var, uji preview (menunggu akun)
+- [ ] Fase 4: custom domain apex + www + `api`, verifikasi TLS (menunggu akun)
+- [x] Fase 5: allowlist CORS/WS; heartbeat sudah ada
+- [ ] Blocker terpisah: perbaiki identitas WebSocket (lihat bagian 14)
 
 ## 13. Perkiraan Biaya
 
@@ -253,3 +254,23 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 | Domain | sudah dimiliki |
 
 Catatan: kredit menutup biaya dyno, tetapi tidak menghapus kebutuhan verifikasi kartu. Tetap pantau Billing agar tidak terjadi penagihan otomatis setelah kredit habis. Jika kredit mendekati kedaluwarsa, evaluasi ulang opsi Cloud Run sebelum beralih ke tagihan kartu.
+
+## 14. Temuan Pra-Deploy: Identitas WebSocket
+
+`go test ./...` gagal pada tiga tes **sebelum** perubahan deployment ini:
+
+| Tes | Penyebab |
+| --- | --- |
+| `TestFullE2EFlow` | Klien mengirim `session=sess_...`; `JoinRoom` menolak token tak dikenal sebagai `ErrIdentity` (`room/identity.go:29-33`), padahal frontend selalu mengirim ID buatan klien (`roomStore.initSession`) |
+| `TestIndependentUpvotesMultiUser` | Efek berantai koneksi pertama yang gagal |
+| `TestTypingPresenceLifecycle` | Tes mengirim `hostKey` di payload, tetapi `hub.go:233-238` mewajibkan `c.IsHost`; setup tes belum diperbarui |
+
+Dampak: pengguna baru berisiko menerima `IDENTITY_EXPIRED` pada koneksi WebSocket pertama, dan reconnect mengirim `participantId` (bukan token) sehingga identitas tidak ditemukan. Ini sudah tercatat sebagai *remaining work* di `docs/javascript-review.md:33`.
+
+Perbaikan yang disarankan (pekerjaan terpisah, bukan bagian deployment):
+
+1. Terbitkan token peserta dari server pada koneksi pertama, kirim lewat `ROOM_STATE`, dan simpan di `sessionStorage`.
+2. Reconnect mengirim token server, bukan ID buatan klien.
+3. Perbarui tes E2E dan tes typing agar memakai kontrak baru.
+4. Verifikasi ulang `go test ./...` sebelum go-live.
+

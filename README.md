@@ -36,6 +36,37 @@ npm run validate
 
 Perintah ini menjalankan pengecekan tipe yang ketat, regresi Node, dan build produksi.
 
+## Deployment
+
+Rencana lengkap ada di [`docs/ways-of-work/plan/deployment/cloudflare-pages-heroku.md`](docs/ways-of-work/plan/deployment/cloudflare-pages-heroku.md).
+
+- **Frontend** → Cloudflare Pages: root `web`, build `npm ci && npm run build`, output `dist`.
+- **Backend** → Heroku: container dari `server/Dockerfile`, satu dyno tanpa autoscaling.
+- **Domain**: `nayeonworks.tech` untuk frontend dan `api.nayeonworks.tech` untuk API/WebSocket.
+
+Variabel build frontend (disetel di dashboard Cloudflare Pages):
+
+| Variable | Contoh | Keterangan |
+| --- | --- | --- |
+| `VITE_API_BASE` | `https://api.nayeonworks.tech` | Kosongkan untuk memakai origin yang sama (dev lokal) |
+| `VITE_WS_BASE` | `wss://api.nayeonworks.tech` | Kosongkan untuk memakai origin halaman |
+
+Variabel runtime backend (Heroku):
+
+| Variable | Contoh | Keterangan |
+| --- | --- | --- |
+| `PORT` | diisi otomatis | Port HTTP |
+| `ALLOWED_ORIGINS` | `https://nayeonworks.tech,https://www.nayeonworks.tech` | Kosong berarti semua origin diizinkan (dev) |
+| `WEB_DIST` | kosong | Mode API-only; biarkan kosong di Heroku |
+
+Deploy backend:
+
+```sh
+cd server
+heroku container:push web -a <app>
+heroku container:release web -a <app>
+```
+
 ## Verifikasi kualitas Go (statis)
 
 ```sh
