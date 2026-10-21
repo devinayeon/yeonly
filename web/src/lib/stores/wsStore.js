@@ -1,5 +1,13 @@
 import { writable, get } from 'svelte/store';
-import { roomStore, getStoredHostKey, storeHostKey, getStoredRoomRole, storeRoomRole } from './roomStore.js';
+import {
+  roomStore,
+  getStoredHostKey,
+  storeHostKey,
+  getStoredRoomRole,
+  storeRoomRole,
+  getStoredParticipantToken,
+  removeStoredParticipantToken,
+} from './roomStore.js';
 import { toast } from './toastStore.js';
 import { parseServerEvent } from '../utils/protocol.js';
 
@@ -28,7 +36,7 @@ function createWSStore() {
   let socket = null;
   let activeRoomId = '';
   let activeHostKey = '';
-  let activeSessionId = '';
+  let activeIdentityKey = '';
   let shouldReconnect = true;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let reconnectTimer = null;
@@ -97,13 +105,30 @@ function createWSStore() {
       storeHostKey(roomId, hostKey);
     }
 
-    const sessionId = roomStore.initSession();
-    if (socket && socket.readyState <= WebSocket.OPEN && activeRoomId === roomId && activeHostKey === hostKey && activeSessionId === sessionId) return;
+    const storedToken = hostKey ? '' : getStoredParticipantToken(roomId);
+    const state = get(roomStore);
+    const stateToken = state.roomId === roomId ? state.participantToken : '';
+    const participantToken = hostKey
+      ? ''
+      : (storedToken || stateToken || '');
+    const localSessionId = get(roomStore).sessionId;
+    const identityKey = hostKey
+      ? `host:${hostKey}`
+      : `participant:${participantToken || localSessionId}`;
+
+    if (
+      socket
+      && socket.readyState <= WebSocket.OPEN
+      && activeRoomId === roomId
+      && activeHostKey === hostKey
+      && activeIdentityKey === identityKey
+    ) return;
+
     disconnect();
 
     activeRoomId = roomId;
     activeHostKey = hostKey;
-    activeSessionId = sessionId;
+    activeIdentityKey = identityKey;
     shouldReconnect = true;
     roomStore.update(s => ({ ...s, votedQuestionIds: [] }));
 
@@ -113,7 +138,10 @@ function createWSStore() {
       roomStore.update(s => ({ ...s, isHost: false, hostKey: '' }));
     }
 
-    let wsUrl = `${resolveWSOrigin(WS_BASE, window.location)}/ws?room=${encodeURIComponent(roomId)}&session=${encodeURIComponent(sessionId)}`;
+    let wsUrl = `${resolveWSOrigin(WS_BASE, window.location)}/ws?room=${encodeURIComponent(roomId)}`;
+    if (participantToken) {
+      wsUrl += `&session=${encodeURIComponent(participantToken)}`;
+    }
     if (hostKey) {
       wsUrl += `&hostKey=${encodeURIComponent(hostKey)}`;
     }
@@ -166,7 +194,38 @@ function createWSStore() {
         clearTyping();
         storeRoomRole(event.payload.id, Boolean(event.payload.isHost));
         roomStore.setRoomState(event.payload);
+        activeIdentityKey = activeHostKey
+          ? `host:${activeHostKey}`
+          : `participant:${event.payload.participantToken || get(roomStore).sessionId}`;
         for (const user of event.payload.typingUsers || []) receiveTyping(user);
+        break;
+
+      case 'IDENTITY_EXPIRED': {
+        if (activeHostKey) {
+          shouldReconnect = false;
+          toast.error('Kunci host tidak valid. Masukkan kunci host yang benar.');
+          break;
+        }
+
+        const roomId = get(roomStore).roomId || activeRoomId;
+        const hadToken = Boolean(getStoredParticipantToken(roomId));
+        removeStoredParticipantToken(roomId);
+        roomStore.update(s => ({ ...s, participantToken: '', sessionId: '' }));
+        activeIdentityKey = 'participant:';
+
+        if (!hadToken) {
+          shouldReconnect = false;
+          toast.error('Gagal membuat identitas peserta. Muat ulang halaman.');
+          break;
+        }
+
+        toast.warning('Sesi peserta kedaluwarsa. Membuat identitas baru...');
+        break;
+      }
+
+      case 'ROOM_CLOSED':
+        shouldReconnect = false;
+        toast.error('Ruang sudah ditutup oleh host.');
         break;
 
       case 'TYPING_UPDATED':

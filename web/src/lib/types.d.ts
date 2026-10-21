@@ -43,6 +43,7 @@ export interface RoomState {
   filterTab: FilterTab;
   isProjectorOpen: boolean;
   sessionId: string;
+  participantToken: string;
 }
 
 export interface RoomSnapshot {

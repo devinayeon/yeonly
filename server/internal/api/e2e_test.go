@@ -15,6 +15,27 @@ import (
 	"yeonly-server/internal/ws"
 )
 
+func readRoomState(t *testing.T, conn *websocket.Conn) model.RoomStatePayload {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var event model.WSEvent
+	if err := conn.ReadJSON(&event); err != nil {
+		t.Fatalf("failed to read initial event: %v", err)
+	}
+	if event.Type != model.EventRoomState {
+		t.Fatalf("expected ROOM_STATE, got %s", event.Type)
+	}
+	raw, err := json.Marshal(event.Payload)
+	if err != nil {
+		t.Fatalf("failed to encode room state: %v", err)
+	}
+	var state model.RoomStatePayload
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatalf("failed to decode room state: %v", err)
+	}
+	return state
+}
+
 func TestFullE2EFlow(t *testing.T) {
 	mgr := room.NewManager()
 	hub := ws.NewHub(mgr)
@@ -49,26 +70,21 @@ func TestFullE2EFlow(t *testing.T) {
 		t.Fatalf("invalid room or host key: %+v", createData)
 	}
 
-	// 2. Connect Student via WebSocket
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&session=sess_student_1"
+	// 2. Connect Student via WebSocket without a client-generated identity.
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID
 	studentConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial student ws: %v", err)
 	}
 	defer studentConn.Close()
 
-	// Read initial ROOM_STATE
-	var initialEvent model.WSEvent
-	_ = studentConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := studentConn.ReadJSON(&initialEvent); err != nil {
-		t.Fatalf("failed to read initial event: %v", err)
-	}
-	if initialEvent.Type != model.EventRoomState {
-		t.Fatalf("expected ROOM_STATE, got %s", initialEvent.Type)
+	initialState := readRoomState(t, studentConn)
+	if initialState.ParticipantID == "" || initialState.ParticipantToken == "" {
+		t.Fatalf("server did not issue participant identity: %+v", initialState)
 	}
 
-	// 3. Connect Host via WebSocket
-	hostWsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&session=sess_host_1&hostKey=" + createData.HostKey
+	// 3. Connect Host via WebSocket using only the host key.
+	hostWsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&hostKey=" + createData.HostKey
 	hostConn, _, err := websocket.DefaultDialer.Dial(hostWsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial host ws: %v", err)
@@ -158,20 +174,24 @@ func TestIndependentUpvotesMultiUser(t *testing.T) {
 	resp.Body.Close()
 
 	// 2. Connect Host (Yeonly)
-	hostWsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&hostKey=" + createData.HostKey + "&session=sess_shared"
+	hostWsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&hostKey=" + createData.HostKey
 	hostConn, _, err := websocket.DefaultDialer.Dial(hostWsURL, nil)
 	if err != nil {
 		t.Fatalf("host dial failed: %v", err)
 	}
 	defer hostConn.Close()
 
-	// 3. Connect Student 1 (even if sharing same session string initially)
-	s1WsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&session=sess_shared"
+	// 3. Connect Student 1 without a client-generated identity.
+	s1WsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID
 	s1Conn, _, err := websocket.DefaultDialer.Dial(s1WsURL, nil)
 	if err != nil {
 		t.Fatalf("s1 dial failed: %v", err)
 	}
 	defer s1Conn.Close()
+	s1State := readRoomState(t, s1Conn)
+	if s1State.ParticipantID == "" || s1State.ParticipantToken == "" {
+		t.Fatalf("s1 did not receive an identity: %+v", s1State)
+	}
 
 	// Add a question directly via manager
 	q, err := mgr.AddQuestion(createData.RoomID, "sess_author", "Pinguin", "Test Question?")
@@ -212,13 +232,20 @@ func TestIndependentUpvotesMultiUser(t *testing.T) {
 	}
 	r.RUnlock()
 
-	// 6. Connect Student 2 with distinct session
-	s2WsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID + "&session=sess_student_2"
+	// 6. Connect Student 2 without a client-generated identity.
+	s2WsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?room=" + createData.RoomID
 	s2Conn, _, err := websocket.DefaultDialer.Dial(s2WsURL, nil)
 	if err != nil {
 		t.Fatalf("s2 dial failed: %v", err)
 	}
 	defer s2Conn.Close()
+	s2State := readRoomState(t, s2Conn)
+	if s2State.ParticipantID == "" || s2State.ParticipantToken == "" {
+		t.Fatalf("s2 did not receive an identity: %+v", s2State)
+	}
+	if s2State.ParticipantID == s1State.ParticipantID || s2State.ParticipantToken == s1State.ParticipantToken {
+		t.Fatalf("students received the same identity: %+v vs %+v", s1State, s2State)
+	}
 
 	// Student 2 upvotes -> upvotes must increase to 3!
 	if err := s2Conn.WriteJSON(map[string]string{

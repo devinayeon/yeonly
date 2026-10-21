@@ -1,6 +1,8 @@
 import { writable, derived, get } from 'svelte/store';
-import { readStorage, writeStorage, readHostKeys } from '../utils/storage.js';
+import { readStorage, writeStorage, readHostKeys, removeStorage } from '../utils/storage.js';
 import { createId } from '../utils/ids.js';
+
+const PARTICIPANT_TOKEN_PREFIX = 'yeonly_participant_token:';
 
 /** @param {string} roomId */
 export function getStoredHostKey(roomId) {
@@ -19,6 +21,34 @@ export function removeStoredHostKey(roomId) {
   const keys = readHostKeys();
   delete keys[roomId.toUpperCase()];
   writeStorage('localStorage', 'yeonly_host_keys', JSON.stringify(keys));
+}
+
+/** @param {string} roomId */
+export function getStoredParticipantToken(roomId) {
+  if (!roomId) return '';
+  return readStorage(
+    'sessionStorage',
+    `${PARTICIPANT_TOKEN_PREFIX}${roomId.toUpperCase()}`,
+  ) ?? '';
+}
+
+/** @param {string} roomId @param {string} token */
+export function storeParticipantToken(roomId, token) {
+  if (!roomId || !token) return;
+  writeStorage(
+    'sessionStorage',
+    `${PARTICIPANT_TOKEN_PREFIX}${roomId.toUpperCase()}`,
+    token,
+  );
+}
+
+/** @param {string} roomId */
+export function removeStoredParticipantToken(roomId) {
+  if (!roomId) return;
+  removeStorage(
+    'sessionStorage',
+    `${PARTICIPANT_TOKEN_PREFIX}${roomId.toUpperCase()}`,
+  );
 }
 
 /** @param {string} roomId */
@@ -63,6 +93,7 @@ function createInitialState() {
     filterTab: 'popular',
     isProjectorOpen: false,
     sessionId: '',
+    participantToken: '',
   };
 }
 
@@ -82,19 +113,34 @@ function createRoomStore() {
       return sid;
     },
     newParticipantIdentity: () => {
+      const { roomId } = get({ subscribe });
+      if (roomId) removeStoredParticipantToken(roomId);
+
       const sid = createId('sess_');
       writeStorage('sessionStorage', 'yeonly_session_id', sid);
-      update(s => ({ ...s, sessionId: sid, userAlias: '', isHost: false, hostKey: '', votedQuestionIds: [] }));
+      update(s => ({
+        ...s,
+        sessionId: sid,
+        participantToken: '',
+        userAlias: '',
+        isHost: false,
+        hostKey: '',
+        votedQuestionIds: [],
+      }));
       return sid;
     },
     /** @param {import('../types').RoomSnapshot} payload */
     setRoomState: (payload) => {
       pendingAnimations.clear();
       const storedKey = getStoredHostKey(payload.id);
+      const token = typeof payload.participantToken === 'string' ? payload.participantToken : '';
+      if (token) storeParticipantToken(payload.id, token);
+
       update(s => ({
         ...s,
         roomId: payload.id,
         sessionId: payload.participantId || s.sessionId,
+        participantToken: token,
         roomName: payload.name ?? '',
         isFrozen: payload.isFrozen ?? false,
         questions: payload.questions ?? [],

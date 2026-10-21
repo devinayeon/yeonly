@@ -17,6 +17,15 @@ export function writeStorage(area, key, value) {
   }
 }
 
+/** @param {'localStorage' | 'sessionStorage'} area @param {string} key */
+export function removeStorage(area, key) {
+  try {
+    globalThis[area]?.removeItem(key);
+  } catch {
+    // Storage can be disabled; the in-memory identity remains usable.
+  }
+}
+
 /** Read only string values from a stored map; malformed storage is never trusted. */
 export function readHostKeys() {
   /** @type {Record<string, string>} */

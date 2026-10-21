@@ -16,6 +16,19 @@ func testClient(h *Hub, roomID, alias string) *Client {
 	return c
 }
 
+func testHostClient(h *Hub, roomID, hostKey string) *Client {
+	c := &Client{
+		RoomID:    roomID,
+		SessionID: "host-session",
+		UserAlias: "Yeonly",
+		IsHost:    true,
+		HostKey:   hostKey,
+		Send:      make(chan []byte, 256),
+	}
+	h.registerClient(c)
+	return c
+}
+
 func drain(c *Client) []model.WSEvent {
 	var events []model.WSEvent
 	for len(c.Send) > 0 {
@@ -46,9 +59,11 @@ func TestTypingPresenceLifecycle(t *testing.T) {
 	r, key, _ := mgr.CreateRoom("Typing", false)
 	other, _, _ := mgr.CreateRoom("Other room", false)
 	h := NewHub(mgr)
+	host := testHostClient(h, r.ID, key)
 	a := testClient(h, r.ID, "Panda #01")
 	b := testClient(h, r.ID, "Koala #02")
 	c := testClient(h, other.ID, "Kucing #03")
+	drain(host)
 	drain(a)
 	drain(b)
 	drain(c)
@@ -103,7 +118,7 @@ func TestTypingPresenceLifecycle(t *testing.T) {
 	drain(b)
 	drain(newcomer)
 	freeze, _ := json.Marshal(map[string]string{"action": model.ActionHostFreeze, "hostKey": key})
-	h.HandleAction(b, freeze)
+	h.HandleAction(host, freeze)
 	if len(h.typing) != 0 {
 		t.Fatal("freezing room did not clear all typing")
 	}
@@ -120,7 +135,7 @@ func TestTypingPresenceLifecycle(t *testing.T) {
 		t.Fatalf("rejection must identify its submission: %+v", rejected)
 	}
 
-	h.HandleAction(b, freeze)
+	h.HandleAction(host, freeze)
 	drain(a)
 	drain(b)
 	drain(newcomer)
