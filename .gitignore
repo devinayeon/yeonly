@@ -30,6 +30,10 @@ __pycache__/
 # Artefak analisis yang dihasilkan alat
 graphify-out/
 
+# Firebase (tidak lagi dipakai)
+.firebase/
+firebase-debug.log*
+
 # Skill agent AI yang dipasang secara lokal
 .agents/
 skills-lock.json
