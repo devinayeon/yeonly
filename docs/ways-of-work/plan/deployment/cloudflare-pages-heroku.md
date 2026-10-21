@@ -80,13 +80,11 @@ function wsOrigin() {
 Lalu ganti baris 101–104 agar memakai `wsOrigin()`.
 `import.meta.env?.` wajib memakai *optional chaining* karena `node --test` tidak menyediakan `import.meta.env`.
 
-### 5.3 `web/public/_redirects` (baru)
+### 5.3 SPA fallback
 
-```text
-/*  /index.html  200
-```
+Jangan menambahkan `_redirects` berisi `/* /index.html 200`. Cloudflare Pages menolaknya dengan peringatan *infinite loop* karena Pages menormalkan `/index.html` menjadi `/`, lalu aturan `/*` mengenai hasil normalisasi itu lagi.
 
-Cloudflare Pages tidak membaca `rewrites` Firebase; file ini menggantikannya agar route SPA tidak 404 saat refresh.
+Cloudflare Pages sudah menangani SPA secara bawaan: selama proyek **tidak memiliki `404.html`** di root output, permintaan ke route yang tidak dikenal akan disajikan `index.html` dengan status 200. Karena `web/public` tidak memiliki `404.html`, fallback SPA aktif tanpa konfigurasi tambahan.
 
 ### 5.4 Pengujian
 
@@ -181,7 +179,7 @@ Nilai `VITE_*` disematkan saat build, jadi mengubahnya menuntut redeploy. Previe
 ### 7.3 Verifikasi preview
 
 - [ ] `https://<hash>.yeonly.pages.dev` memuat landing
-- [ ] Refresh di route ruang tidak 404 (uji `_redirects`)
+- [ ] Refresh di route ruang tidak 404 (fallback SPA bawaan Pages)
 - [ ] Network tab menuju `api.nayeonworks.tech`, bukan origin Pages
 
 ## 8. Fase 4 — Domain `nayeonworks.tech`
@@ -237,7 +235,7 @@ Catatan: record `api` sebaiknya **DNS only** agar Cloudflare tidak mem-proxy Web
 ## 12. Checklist Eksekusi
 
 - [x] Fase 0: hapus konfigurasi Firebase, perbarui `.gitignore`
-- [x] Fase 1: env API/WS base, `_redirects`, uji `npm run validate` (23 tes lulus, build sukses)
+- [x] Fase 1: env API/WS base, fallback SPA bawaan Pages, uji `npm run validate` (23 tes lulus, build sukses)
 - [x] Fase 2: Dockerfile, `.dockerignore`, `heroku.yml`, `Dockerfile.heroku`, dokumentasi deploy Heroku
 - [ ] Fase 3: proyek Pages, env var, uji preview (menunggu akun)
 - [ ] Fase 4: custom domain apex + www + `api`, verifikasi TLS (menunggu akun)
